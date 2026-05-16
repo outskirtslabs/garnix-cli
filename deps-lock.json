@@ -13,6 +13,12 @@
     "aopalliance/aopalliance/1.0/aopalliance-1.0.pom": {
       "sha256": "26e82330157d6b844b67a8064945e206581e772977183e3e31fec6058aa9a59b"
     },
+    "babashka/fs/0.5.27/fs-0.5.27.jar": {
+      "sha256": "64d92932627e2af0f008069417beb00ba30838186654054a14133c4df885921b"
+    },
+    "babashka/fs/0.5.27/fs-0.5.27.pom": {
+      "sha256": "8bf5a702bb0529b0d5e06f064b8178cf91f92ad9febd2865ef5ee3d09dc8f723"
+    },
     "ch/qos/logback/logback-classic/1.0.12/logback-classic-1.0.12.jar": {
       "sha256": "bb5437dc692a5c5af75b2fed36a4431e834b234399372c6c1f2dad9d9b072551"
     },
@@ -310,11 +316,11 @@
     "dev/weavejester/hashp/0.5.1/hashp-0.5.1.pom": {
       "sha256": "76cb5f1b0f683a643ecf3f406713e938b7c516f5207c97b370a9d291cf617618"
     },
-    "djblue/portal/0.63.1/portal-0.63.1.jar": {
-      "sha256": "0e0c053d8e55e887cb01fbe1adde9b435a1319efa93ef910edfd2368b023a7a3"
+    "djblue/portal/0.64.1/portal-0.64.1.jar": {
+      "sha256": "c3c4e18e6c14d55858930fc7e7122aa8e89a3a1b18ecbf00a9d60b1eec30e282"
     },
-    "djblue/portal/0.63.1/portal-0.63.1.pom": {
-      "sha256": "a9297eecb49e6541b00a7453ca8d583c9da19e6549ae90b4071f6794e22f1ca3"
+    "djblue/portal/0.64.1/portal-0.64.1.pom": {
+      "sha256": "c311a47c2082b784a2c73bedaf7848f60d203b003fc21ab45ea9eecfa6b3f573"
     },
     "expound/expound/0.9.0/expound-0.9.0.jar": {
       "sha256": "d6a372609918e0351bfa6a8bd693d18bc199e8ba7aafaec11e895afae018f95c"
@@ -814,6 +820,24 @@
     "org/apache/maven/wagon/wagon/3.5.3/wagon-3.5.3.pom": {
       "sha256": "7c10b8bac59268fe7957f2ab2b50965d90069ebf850c756bb55ea807ce440f0b"
     },
+    "org/babashka/cli/0.8.60/cli-0.8.60.jar": {
+      "sha256": "026f53164bcf2b68381fa5c2cd109260d459cc0cd900609488e98cbd0f1f1314"
+    },
+    "org/babashka/cli/0.8.60/cli-0.8.60.pom": {
+      "sha256": "469ed12035697965231b5288b2e70e311fe2adde5624f3c34c6f15bf3179628f"
+    },
+    "org/babashka/http-client/0.4.22/http-client-0.4.22.jar": {
+      "sha256": "24f8671d4e3172da0c4dc4aec834b0c57f724a88ba9116c553b23a917ef78cc3"
+    },
+    "org/babashka/http-client/0.4.22/http-client-0.4.22.pom": {
+      "sha256": "cf3dc64db9e4b88117f20f5bc1e7bd43702a97dc6b7149fa5aab92892aa29294"
+    },
+    "org/babashka/json/0.1.6/json-0.1.6.jar": {
+      "sha256": "b782c5c6c8c04aadfbc9dcebb033ef5f60c7e090eeed64c3b25873b279eebe21"
+    },
+    "org/babashka/json/0.1.6/json-0.1.6.pom": {
+      "sha256": "b645a2e5c9138f3da84381f061c2c36f2726467972e172e525fea365d5f75575"
+    },
     "org/clojure/clojure/1.12.4/clojure-1.12.4.jar": {
       "sha256": "4b81e9ba6da38c45d9cc58023c674062b8c9f0714f33ff00ded22e6a949da177"
     },
@@ -850,11 +874,14 @@
     "org/clojure/core.specs.alpha/0.4.74/core.specs.alpha-0.4.74.pom": {
       "sha256": "33410eb8aa73d52d957b3dc6e0a65f3998ac0623cbd813d90c33e6e689c42429"
     },
-    "org/clojure/data.json/2.4.0/data.json-2.4.0.jar": {
-      "sha256": "ec3f2f994e1eedd420313c452ba5518c5f5c97be5152dfed5650bc6611486adf"
-    },
     "org/clojure/data.json/2.4.0/data.json-2.4.0.pom": {
       "sha256": "a42ea70f17b517666ad8492a1bfa917de5defac7b47c516f6d0d4d89c2780cf4"
+    },
+    "org/clojure/data.json/2.5.0/data.json-2.5.0.jar": {
+      "sha256": "6779c36ee1f90d70f35feb872fb31756aa0e1b8bd6c65e105e780babb4b25704"
+    },
+    "org/clojure/data.json/2.5.0/data.json-2.5.0.pom": {
+      "sha256": "04f0b2d6929d17c22f986b2500ba805585580de13b8069247b825460a87041fe"
     },
     "org/clojure/data.json/2.5.1/data.json-2.5.1.jar": {
       "sha256": "6da57351e334173c85dea1696c7d4847a4f3e11dbaeb397da65e7a26849e94b3"

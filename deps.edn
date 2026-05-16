@@ -1,5 +1,8 @@
 {:paths   ["src"]
- :deps    {}
+ :deps    {babashka/fs                 {:mvn/version "0.5.27"}
+           org.babashka/cli           {:mvn/version "0.8.60"}
+           org.babashka/http-client   {:mvn/version "0.4.22"}
+           org.babashka/json          {:mvn/version "0.1.6"}}
  :aliases {:kaocha {:extra-paths ["test"]
                     :extra-deps  {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
                     :main-opts   ["-m" "kaocha.runner"]}

@@ -1,10 +1,13 @@
 {:deps  {outskirtslabs/bb-tasks
          {:git/url "https://github.com/outskirtslabs/bb-tasks"
-          :git/sha "e868e28b18a0496ec4d39878f0307cb1df17da22"}}
- :paths []
+          :git/sha "e868e28b18a0496ec4d39878f0307cb1df17da22"}
+         org.babashka/json {:mvn/version "0.1.6"}}
+ :paths ["src"]
+ :bbin/bin {garnix-cli {:main-opts ["-m" "garnix-cli.core"]}}
  :tasks {:requires
          ([clojure.string :as str]
                             [clojure.pprint :refer [print-table]]
+                            [babashka.fs :as fs]
                             [babashka.tasks :refer [shell]]
                             [ol.bb-tasks.publish-clojars :as publish-clojars])
 
@@ -52,6 +55,17 @@
          ci
          {:doc     "Run CI checks: test, format check, and lint"
           :depends [test fmt:check lint]}
+
+         build
+         {:doc "Generate the garnix-cli uberscript"
+          :task (do
+                  (println "Building uberscript...")
+                  (fs/delete-if-exists "garnix-cli")
+                  (shell "bb uberscript garnix-cli -m garnix-cli.core")
+                  (let [content (slurp "garnix-cli")]
+                    (spit "garnix-cli" (str "#!/usr/bin/env bb\n" content)))
+                  (shell "chmod +x garnix-cli")
+                  (println "Done. Generated: garnix-cli"))}
 
          jar     {:override-builtin true
                   :depends          [clean]

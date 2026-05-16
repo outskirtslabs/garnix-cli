@@ -1,0 +1,403 @@
+#!/usr/bin/env bb
+(ns babashka.json
+  (:refer-clojure :exclude [read]))
+
+(defn- try-require [sym]
+  (try (deref (requiring-resolve sym))
+       (catch Exception _e
+         nil)))
+
+(let [provider (some-> (System/getProperty "babashka.json.provider")
+                       not-empty symbol)
+      [lib read-str-fn write-str-fn ->json-reader read-fn]
+      (if provider
+        (deref (requiring-resolve
+                (case provider
+                  org.clojure/data.json
+                  'babashka.json.internal.data-json/fns
+                  cheshire/cheshire
+                  'babashka.json.internal.cheshire/fns
+                  com.cnuernber/charred
+                  'babashka.json.internal.charred/fns
+                  metosin/jsonista
+                  'babashka.json.internal.jsonista/fns)))
+        (or
+         ;; this should always work in babashka
+         (try-require 'babashka.json.internal.cheshire/fns)
+         ;; this needs to be added to the classpath explicitly
+         (try-require 'babashka.json.internal.charred/fns)
+         ;; this needs to be added to the classpath explicitly
+         (try-require 'babashka.json.internal.jsonista/fns)
+         ;; this one should always work as this project has a dependency on it.
+         (try-require 'babashka.json.internal.data-json/fns)))]
+  (def ^:private lib lib)
+  (def ^:private read-str-fn read-str-fn)
+  (def ^:private write-str-fn write-str-fn)
+  (def ^:private internal->json-reader ->json-reader)
+  (def ^:private read-fn read-fn))
+
+(defn read
+  ([reader] (read reader nil))
+  ([reader opts]
+   (read-fn reader opts)))
+
+(defn read-str
+  ([s] (read-str s nil))
+  ([s opts]
+   (read-str-fn s opts)))
+
+(defn write-str
+  ([s] (write-str s nil))
+  ([s opts]
+   (write-str-fn s opts)))
+
+(defn ->json-reader
+  ([x] (->json-reader x nil))
+  ([x opts]
+   (internal->json-reader x opts)))
+
+(defn get-provider
+  "Returns which library currently provides the JSON implementation."
+  []
+  lib)
+(ns garnix-cli.format
+  (:require
+   [babashka.json :as json]
+   [clojure.string :as str]))
+
+(defn field [m k]
+  (cond
+    (contains? m k) (get m k)
+    (contains? m (name k)) (get m (name k))
+    :else nil))
+
+(defn- summary [response]
+  (or (field response :summary) {}))
+
+(defn- builds [response]
+  (vec (or (field response :builds) [])))
+
+(defn- text [x]
+  (cond
+    (nil? x) ""
+    (keyword? x) (name x)
+    :else (str x)))
+
+(defn- short-commit [commit]
+  (subs commit 0 (min 8 (count commit))))
+
+(defn status-with-label [build]
+  (let [status (text (or (field build :status) "Unknown"))
+        label  (case status
+                 "Success" "[OK]"
+                 "Failed" "[FAIL]"
+                 "Pending" "⏳"
+                 "Cancelled" "[CANCELLED]"
+                 "[UNKNOWN]")]
+    (str label " " status)))
+
+(defn- count-summary [s k]
+  (long (or (field s k) 0)))
+
+(defn success-rate [response]
+  (let [s         (summary response)
+        succeeded (count-summary s :succeeded)
+        total     (+ succeeded
+                     (count-summary s :failed)
+                     (count-summary s :pending)
+                     (count-summary s :cancelled))]
+    (if (zero? total)
+      100.0
+      (* 100.0 (/ succeeded total)))))
+
+(defn- rate-line [response]
+  (let [rate  (success-rate response)
+        label (cond
+                (= 100.0 rate) "[SUCCESS]"
+                (<= 80.0 rate) "[GOOD]"
+                :else "[WARNING]")]
+    (format "%s Success Rate: %.1f%%" label rate)))
+
+(defn- format-human [response]
+  (let [s             (summary response)
+        failed-builds (filter #(= "Failed" (text (field % :status))) (builds response))
+        base-lines    [(str "# Build Summary for " (short-commit (text (field s :git_commit))))
+                       ""
+                       (str "**Repository:** " (field s :repo_owner) "/" (field s :repo_name))
+                       (str "**Branch:** " (field s :branch))
+                       (str "**Started:** " (field s :start_time))
+                       ""
+                       "## Summary"
+                       (str "- [OK] Succeeded: " (count-summary s :succeeded))
+                       (str "- [FAIL] Failed: " (count-summary s :failed))
+                       (str "- ⏳ Pending: " (count-summary s :pending))
+                       (str "- [CANCELLED] Cancelled: " (count-summary s :cancelled))]
+        failed-lines  (when (seq failed-builds)
+                        (concat ["" "[SEARCH] Failed Builds:"]
+                                (mapcat (fn [build]
+                                          (let [drv-path (field build :drv_path)]
+                                            (cond-> [(str "  • " (field build :package)
+                                                          " (" (or (field build :system) "unknown") "): "
+                                                          (status-with-label build))]
+                                              drv-path (conj (str "    Derivation: " drv-path)))))
+                                        failed-builds)))]
+    (str/join "\n" (concat base-lines failed-lines ["" (rate-line response)]))))
+
+(defn- format-plain [response]
+  (let [s           (summary response)
+        build-lines (map (fn [build]
+                           (str "  " (field build :package)
+                                " - " (text (field build :status))
+                                " (" (or (field build :system) "unknown") ")"))
+                         (builds response))]
+    (str/join "\n"
+              (concat
+               [(str "Build Status for " (field s :git_commit))
+                (str "Repository: " (field s :repo_owner) "/" (field s :repo_name))
+                (str "Branch: " (field s :branch))
+                (str "Started: " (field s :start_time))
+                ""
+                "Summary:"
+                (str "  Succeeded: " (count-summary s :succeeded))
+                (str "  Failed: " (count-summary s :failed))
+                (str "  Pending: " (count-summary s :pending))
+                (str "  Cancelled: " (count-summary s :cancelled))
+                ""]
+               (when (seq build-lines)
+                 (concat ["Individual Builds:"] build-lines [""]))
+               [(format "Success Rate: %.1f%%" (success-rate response))]))))
+
+(defn format-response [response output-format]
+  (case output-format
+    :json (json/write-str response)
+    :edn (pr-str response)
+    :plain (format-plain response)
+    :human (format-human response)
+    (format-human response)))
+
+(defn- format-log-lines [logs]
+  (map (fn [entry]
+         (str "[" (field entry :timestamp) "] " (field entry :log_message)))
+       logs))
+
+(defn- format-log-text [log-response build-id]
+  (let [logs (or (field log-response :logs) [])]
+    (if (seq logs)
+      (str/join "\n"
+                (concat [(str "Logs for build " (or build-id "unknown")
+                              " (finished: " (field log-response :finished) "):")
+                         (apply str (repeat 60 "="))]
+                        (format-log-lines logs)))
+      (str "No logs available" (when build-id (str " for build " build-id))))))
+
+(defn format-logs
+  ([log-response output-format]
+   (format-logs log-response output-format nil))
+  ([log-response output-format build-id]
+   (case output-format
+     :json (json/write-str log-response)
+     :edn (pr-str log-response)
+     (format-log-text log-response build-id))))
+(ns garnix-cli.auth
+  (:require
+   [babashka.fs :as fs]
+   [clojure.string :as str]))
+
+(def token-env-var "GARNIX_API_TOKEN")
+
+(defn- non-blank [s]
+  (when-not (str/blank? s)
+    s))
+
+(defn- strip-matching-quotes [s]
+  (let [s (str/trim (or s ""))]
+    (if (and (>= (count s) 2)
+             (or (and (= \" (first s)) (= \" (last s)))
+                 (and (= \' (first s)) (= \' (last s)))))
+      (subs s 1 (dec (count s)))
+      s)))
+
+(defn- parse-dotenv-line [line]
+  (let [line (str/trim line)
+        line (if (str/starts-with? line "export ")
+               (str/trim (subs line 7))
+               line)]
+    (when (and (not (str/blank? line))
+               (not (str/starts-with? line "#")))
+      (let [[k v] (str/split line #"=" 2)]
+        (when (and k v (re-matches #"[A-Za-z_][A-Za-z0-9_]*" (str/trim k)))
+          [(str/trim k) (strip-matching-quotes v)])))))
+
+(defn dotenv-map
+  ([]
+   (dotenv-map ".env"))
+  ([path]
+   (if (fs/regular-file? path)
+     (->> (fs/read-all-lines path)
+          (keep parse-dotenv-line)
+          (into {}))
+     {})))
+
+(defn resolve-token [opts]
+  (let [env      (if (contains? opts :env) (:env opts) (System/getenv))
+        dotenv   (if (contains? opts :dotenv)
+                   (:dotenv opts)
+                   (dotenv-map (or (:dotenv-path opts) ".env")))
+        explicit (non-blank (:token opts))]
+    (or explicit
+        (non-blank (get env token-env-var))
+        (non-blank (get dotenv token-env-var)))))
+(ns garnix-cli.api
+  (:require
+   [babashka.http-client :as http]
+   [babashka.json :as json]
+   [clojure.string :as str]))
+
+(def default-base-url "https://api.garnix.io")
+
+(defn- trim-trailing-slashes [s]
+  (str/replace (or s default-base-url) #"/+$" ""))
+
+(defn url [base-url path]
+  (str (trim-trailing-slashes base-url) path))
+
+(defn- success-status? [status]
+  (<= 200 (long status) 299))
+
+(defn- parse-json-body [body]
+  (when-not (str/blank? body)
+    (json/read-str body)))
+
+(defn request!
+  ([client method path]
+   (request! client method path {}))
+  ([{:keys [base-url token request-fn]
+     :or   {base-url   default-base-url
+            request-fn http/request}}
+    method
+    path
+    opts]
+   (let [default-headers (cond-> {"Accept" "application/json"}
+                           (not (str/blank? token))
+                           (assoc "Authorization" (str "Bearer " token)))
+         headers         (merge default-headers (:headers opts))
+         req             (merge {:method  method
+                                 :uri     (url base-url path)
+                                 :headers headers
+                                 :throw   false}
+                                (dissoc opts :headers))
+         resp            (request-fn req)
+         status          (:status resp)]
+     (if (success-status? status)
+       resp
+       (throw (ex-info (str "Garnix API request failed with HTTP " status)
+                       {:type   :garnix-cli.api/http-error
+                        :status status
+                        :body   (:body resp)
+                        :uri    (:uri req)}))))))
+
+(defn fetch-commit! [client commit-id]
+  (-> (request! client :get (str "/commits/" commit-id))
+      :body
+      parse-json-body))
+
+(defn fetch-build-logs! [client build-id]
+  (-> (request! client :get (str "/build/" build-id "/logs"))
+      :body
+      parse-json-body))
+
+(defn fetch-build-logs-raw! [client build-id]
+  (:body (request! client :get (str "/build/" build-id "/logs/raw")
+                   {:headers {"Accept" "text/plain"}})))
+(ns garnix-cli.core
+  (:require
+   [babashka.cli :as cli]
+   [clojure.string :as str]
+   [garnix-cli.api :as api]
+   [garnix-cli.auth :as auth]
+   [garnix-cli.format :as fmt])
+  (:gen-class))
+
+(def cli-config
+  {:spec      {:token     {:desc "Bearer token (defaults to GARNIX_API_TOKEN)"
+                           :ref  "<token>"}
+               :base-url  {:desc "Garnix API base URL"
+                           :ref  "<url>"}
+               :format    {:desc     "Output format: human, plain, json, edn"
+                           :ref      "<format>"
+                           :coerce   :keyword
+                           :validate #{:human :plain :json :edn}}
+               :commit-id {:desc "Git commit SHA"
+                           :ref  "<sha>"}
+               :build-id  {:desc "Garnix build id"
+                           :ref  "<id>"}
+               :raw       {:desc   "Print raw build logs"
+                           :coerce :boolean}
+               :help      {:desc   "Show help"
+                           :alias  :h
+                           :coerce :boolean}}
+   :exec-args {:format   :human
+               :base-url api/default-base-url}
+   :restrict  true})
+
+(defn usage-error [message]
+  (throw (ex-info message {:type :garnix-cli.core/usage-error})))
+
+(defn- positional-or-option [opts positional option-key]
+  (or (get opts option-key) (first positional)))
+
+(defn parse-command [argv]
+  (let [{:keys [opts args]}    (cli/parse-args argv cli-config)
+        [command & positional] args
+        opts                   (update opts :format #(if (keyword? %) % (keyword %)))]
+    (case command
+      nil (assoc opts :command (if (:help opts) :help :help))
+      "help" (assoc opts :command :help)
+      "fetch" (let [commit-id (positional-or-option opts positional :commit-id)]
+                (when (str/blank? commit-id)
+                  (usage-error "fetch requires a commit id"))
+                (assoc opts :command :fetch :commit-id commit-id))
+      "logs" (let [build-id (positional-or-option opts positional :build-id)]
+               (when (str/blank? build-id)
+                 (usage-error "logs requires a build id"))
+               (assoc opts :command :logs :build-id build-id))
+      (usage-error (str "unknown command: " command)))))
+
+(defn help-text []
+  (str/join
+   "\n"
+   ["garnix-cli - inspect Garnix build status"
+    ""
+    "Usage:"
+    "  garnix-cli fetch <commit-sha> [--format human|plain|json|edn]"
+    "  garnix-cli logs <build-id> [--raw] [--format human|json|edn]"
+    ""
+    "Options:"
+    (cli/format-opts cli-config)]))
+
+(defn- client [opts]
+  {:base-url (:base-url opts)
+   :token    (auth/resolve-token opts)})
+
+(defn execute! [parsed]
+  (case (:command parsed)
+    :help (do (println (help-text)) nil)
+    :fetch (let [response (api/fetch-commit! (client parsed) (:commit-id parsed))]
+             (println (fmt/format-response response (:format parsed)))
+             response)
+    :logs (if (:raw parsed)
+            (let [logs (api/fetch-build-logs-raw! (client parsed) (:build-id parsed))]
+              (println logs)
+              logs)
+            (let [logs (api/fetch-build-logs! (client parsed) (:build-id parsed))]
+              (println (fmt/format-logs logs (:format parsed) (:build-id parsed)))
+              logs))))
+
+(defn -main [& args]
+  (try
+    (execute! (parse-command args))
+    (catch Exception e
+      (binding [*out* *err*]
+        (println (ex-message e)))
+      (System/exit 1))))
+(ns user (:require [garnix-cli.core])) (apply garnix-cli.core/-main *command-line-args*)
