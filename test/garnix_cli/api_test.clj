@@ -25,6 +25,17 @@
                                :request-fn echo-json-request}
                               "abc123")))))
 
+(deftest fetch-repo-commits-uses-repo-commits-endpoint
+  (is (= {:seen {:method        "get"
+                 :uri           "https://example.test/commits/repo/owner/repo"
+                 :authorization "Bearer token-123"
+                 :accept        "application/json"
+                 :basic-auth    nil}}
+         (api/fetch-repo-commits! {:base-url   "https://example.test"
+                                   :token      "token-123"
+                                   :request-fn echo-json-request}
+                                  {:owner "owner" :repo "repo"}))))
+
 (deftest fetch-build-logs-uses-documented-build-log-endpoints
   (testing "structured logs endpoint"
     (is (= {:seen {:method        "get"

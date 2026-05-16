@@ -21,6 +21,15 @@
          (select-keys (core/parse-command ["--format" "edn" "fetch" "abc123"])
                       [:command :format]))))
 
+(deftest parse-command-supports-global-output-shortcuts
+  (is (= [{:command :list :format :json :repo "owner/repo" :limit 5}
+          {:command :view :format :edn :repo "owner/repo" :limit 20}
+          {:command :watch :format :plain :repo "owner/repo" :limit 20}]
+         (mapv #(select-keys (core/parse-command %) [:command :format :repo :limit])
+               [["--json" "list" "-R" "owner/repo" "--limit" "5"]
+                ["--edn" "view" "-R" "owner/repo"]
+                ["--plain" "watch" "-R" "owner/repo"]]))))
+
 (deftest parse-command-keeps-auth-options-minimal
   (is (= {:token "cli-token"}
          (select-keys (core/parse-command ["--token" "cli-token" "fetch" "abc123"])
@@ -43,6 +52,29 @@
           :raw      true}
          (select-keys (core/parse-command ["logs" "B5aPM2pB" "--raw"])
                       [:command :build-id :raw]))))
+
+(deftest parse-command-supports-list-with-repo-status-and-limit
+  (is (= {:command :list
+          :repo    "owner/repo"
+          :status  "failure"
+          :limit   5}
+         (select-keys (core/parse-command ["list" "-R" "owner/repo" "--status" "failure" "--limit" "5"])
+                      [:command :repo :status :limit]))))
+
+(deftest parse-command-supports-view-latest-for-repo
+  (is (= {:command :view
+          :repo    "owner/repo"}
+         (select-keys (core/parse-command ["view" "--repo" "owner/repo"])
+                      [:command :repo]))))
+
+(deftest parse-command-supports-watch-flags
+  (is (= {:command     :watch
+          :repo        "owner/repo"
+          :compact     true
+          :exit-status true
+          :interval    7}
+         (select-keys (core/parse-command ["watch" "-R" "owner/repo" "--compact" "--exit-status" "--interval" "7"])
+                      [:command :repo :compact :exit-status :interval]))))
 
 (deftest parse-command-rejects-missing-required-positional-values
   (testing "fetch requires a commit id"

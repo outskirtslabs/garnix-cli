@@ -52,6 +52,11 @@
       :body
       parse-json-body))
 
+(defn fetch-repo-commits! [client {:keys [owner repo]}]
+  (-> (request! client :get (str "/commits/repo/" owner "/" repo))
+      :body
+      parse-json-body))
+
 (defn fetch-build-logs! [client build-id]
   (-> (request! client :get (str "/build/" build-id "/logs"))
       :body

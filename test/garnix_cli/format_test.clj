@@ -27,7 +27,7 @@
              {:id         "build-fail"
               :package    "pkg-fail"
               :system     nil
-              :status     "Failed"
+              :status     "Failure"
               :drv_path   "/nix/store/pkg-fail.drv"
               :start_time "2026-05-16T12:00:02Z"
               :end_time   "2026-05-16T12:02:00Z"}
@@ -40,24 +40,26 @@
   (is (= 50.0 (fmt/success-rate sample-response))))
 
 (deftest status-with-label-covers-known-and-unknown-statuses
-  (is (= ["[OK] Success" "[FAIL] Failed" "⏳ Pending" "[CANCELLED] Cancelled" "[UNKNOWN] Weird"]
+  (is (= ["[OK] Success" "[FAIL] Failed" "[FAIL] Failure" "⏳ Pending" "[CANCELLED] Cancelled" "[UNKNOWN] Weird"]
          (mapv fmt/status-with-label
                [{:status "Success"}
                 {:status "Failed"}
+                {:status "Failure"}
                 {:status "Pending"}
                 {:status "Cancelled"}
                 {:status "Weird"}]))))
 
-(deftest human-format-includes-summary-failures-and-success-rate
+(deftest human-format-includes-summary-failures-build-ids-and-success-rate
   (let [out (fmt/format-response sample-response :human)]
-    (is (= [true true true true]
+    (is (= [true true true true true]
            [(str/includes? out "# Build Summary for abcdef12")
             (str/includes? out "**Repository:** owner/repo")
-            (str/includes? out "pkg-fail (unknown): [FAIL] Failed")
+            (str/includes? out "pkg-fail (unknown): [FAIL] Failure")
+            (str/includes? out "Build ID: build-fail")
             (str/includes? out "Success Rate: 50.0%")]))))
 
 (deftest plain-format-is-stable-and-line-oriented
-  (is (= "Build Status for abcdef1234567890\nRepository: owner/repo\nBranch: main\nStarted: 2026-05-16T12:00:00Z\n\nSummary:\n  Succeeded: 2\n  Failed: 1\n  Pending: 1\n  Cancelled: 0\n\nIndividual Builds:\n  pkg-ok - Success (x86_64-linux)\n  pkg-fail - Failed (unknown)\n  pkg-pending - Pending (unknown)\n\nSuccess Rate: 50.0%"
+  (is (= "Build Status for abcdef1234567890\nRepository: owner/repo\nBranch: main\nStarted: 2026-05-16T12:00:00Z\n\nSummary:\n  Succeeded: 2\n  Failed: 1\n  Pending: 1\n  Cancelled: 0\n\nIndividual Builds:\n  build-ok  pkg-ok - Success (x86_64-linux)\n  build-fail  pkg-fail - Failure (unknown)\n  build-pending  pkg-pending - Pending (unknown)\n\nSuccess Rate: 50.0%"
          (fmt/format-response sample-response :plain))))
 
 (deftest json-format-round-trips-response-data
@@ -84,3 +86,44 @@
   (let [log-response {:finished false :logs []}]
     (is (= log-response
            (edn/read-string (fmt/format-logs log-response :edn "build-123"))))))
+
+(def sample-commits
+  [{:repo_owner "owner"
+    :repo_name  "repo"
+    :git_commit "abcdef1234567890"
+    :branch     "main"
+    :start_time "2026-05-16T12:00:00Z"
+    :succeeded  2
+    :failed     1
+    :pending    0
+    :cancelled  0}
+   {:repo_owner "owner"
+    :repo_name  "repo"
+    :git_commit "1234567890abcdef"
+    :branch     "main"
+    :start_time "2026-05-16T12:05:00Z"
+    :succeeded  1
+    :failed     0
+    :pending    1
+    :cancelled  0}])
+
+(deftest commit-list-format-shows-copyable-commits-and-status
+  (is (= "Recent Garnix runs for owner/repo\nabcdef12  failure  main  2026-05-16T12:00:00Z  2 succeeded, 1 failed, 0 pending, 0 cancelled\n12345678  pending  main  2026-05-16T12:05:00Z  1 succeeded, 0 failed, 1 pending, 0 cancelled"
+         (fmt/format-commit-list {:repo    {:slug "owner/repo"}
+                                  :commits sample-commits}
+                                 :plain))))
+
+(deftest commit-list-format-supports-json-and-edn
+  (let [list-data {:repo {:slug "owner/repo"} :commits sample-commits}]
+    (is (= [list-data list-data]
+           [(json/read-str (fmt/format-commit-list list-data :json))
+            (edn/read-string (fmt/format-commit-list list-data :edn))]))))
+
+(deftest compact-watch-format-shows-one-line-status
+  (is (= "abcdef12 owner/repo main pending — 2 succeeded, 1 failed, 1 pending, 0 cancelled"
+         (fmt/format-watch sample-response :compact))))
+
+(deftest watch-format-honors-machine-readable-output-formats
+  (is (= [sample-response sample-response]
+         [(json/read-str (fmt/format-watch sample-response :json))
+          (edn/read-string (fmt/format-watch sample-response :edn))])))

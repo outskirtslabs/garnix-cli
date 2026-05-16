@@ -19,6 +19,12 @@
     "babashka/fs/0.5.27/fs-0.5.27.pom": {
       "sha256": "8bf5a702bb0529b0d5e06f064b8178cf91f92ad9febd2865ef5ee3d09dc8f723"
     },
+    "babashka/process/0.5.22/process-0.5.22.jar": {
+      "sha256": "db6047ed1464b95909dbefdd1ce0f6759fdb56ba104b6c923bf7611464e8cf46"
+    },
+    "babashka/process/0.5.22/process-0.5.22.pom": {
+      "sha256": "2236b1e5502af7f1459caa263fe86e15238a87f1d61a2c172c066dcbfd62c28f"
+    },
     "ch/qos/logback/logback-classic/1.0.12/logback-classic-1.0.12.jar": {
       "sha256": "bb5437dc692a5c5af75b2fed36a4431e834b234399372c6c1f2dad9d9b072551"
     },

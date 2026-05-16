@@ -24,11 +24,17 @@
 (defn- short-commit [commit]
   (subs commit 0 (min 8 (count commit))))
 
+(def failure-statuses #{"Failed" "Failure"})
+
+(defn failed-status? [status]
+  (contains? failure-statuses (text status)))
+
 (defn status-with-label [build]
   (let [status (text (or (field build :status) "Unknown"))
         label  (case status
                  "Success" "[OK]"
                  "Failed" "[FAIL]"
+                 "Failure" "[FAIL]"
                  "Pending" "⏳"
                  "Cancelled" "[CANCELLED]"
                  "[UNKNOWN]")]
@@ -48,6 +54,19 @@
       100.0
       (* 100.0 (/ succeeded total)))))
 
+(defn summary-status [s]
+  (cond
+    (pos? (count-summary s :pending)) "pending"
+    (pos? (count-summary s :failed)) "failure"
+    (pos? (count-summary s :cancelled)) "cancelled"
+    :else "success"))
+
+(defn counts-text [s]
+  (str (count-summary s :succeeded) " succeeded, "
+       (count-summary s :failed) " failed, "
+       (count-summary s :pending) " pending, "
+       (count-summary s :cancelled) " cancelled"))
+
 (defn- rate-line [response]
   (let [rate  (success-rate response)
         label (cond
@@ -58,7 +77,7 @@
 
 (defn- format-human [response]
   (let [s             (summary response)
-        failed-builds (filter #(= "Failed" (text (field % :status))) (builds response))
+        failed-builds (filter #(failed-status? (field % :status)) (builds response))
         base-lines    [(str "# Build Summary for " (short-commit (text (field s :git_commit))))
                        ""
                        (str "**Repository:** " (field s :repo_owner) "/" (field s :repo_name))
@@ -77,6 +96,7 @@
                                             (cond-> [(str "  • " (field build :package)
                                                           " (" (or (field build :system) "unknown") "): "
                                                           (status-with-label build))]
+                                              (field build :id) (conj (str "    Build ID: " (field build :id)))
                                               drv-path (conj (str "    Derivation: " drv-path)))))
                                         failed-builds)))]
     (str/join "\n" (concat base-lines failed-lines ["" (rate-line response)]))))
@@ -84,7 +104,8 @@
 (defn- format-plain [response]
   (let [s           (summary response)
         build-lines (map (fn [build]
-                           (str "  " (field build :package)
+                           (str "  " (or (field build :id) "unknown")
+                                "  " (field build :package)
                                 " - " (text (field build :status))
                                 " (" (or (field build :system) "unknown") ")"))
                          (builds response))]
@@ -136,3 +157,32 @@
      :json (json/write-str log-response)
      :edn (pr-str log-response)
      (format-log-text log-response build-id))))
+
+(defn- commit-row [commit]
+  (str (short-commit (text (field commit :git_commit)))
+       "  " (summary-status commit)
+       "  " (or (field commit :branch) "unknown")
+       "  " (field commit :start_time)
+       "  " (counts-text commit)))
+
+(defn- format-commit-list-plain [{:keys [repo commits]}]
+  (str/join "\n"
+            (concat [(str "Recent Garnix runs for " (:slug repo))]
+                    (map commit-row commits))))
+
+(defn format-commit-list [{:keys [commits] :as data} output-format]
+  (let [data (assoc data :commits (vec commits))]
+    (case output-format
+      :json (json/write-str data)
+      :edn (pr-str data)
+      (format-commit-list-plain data))))
+
+(defn format-watch [response mode]
+  (case mode
+    :compact (let [s (summary response)]
+               (str (short-commit (text (field s :git_commit)))
+                    " " (field s :repo_owner) "/" (field s :repo_name)
+                    " " (or (field s :branch) "unknown")
+                    " " (summary-status s)
+                    " — " (counts-text s)))
+    (format-response response mode)))
