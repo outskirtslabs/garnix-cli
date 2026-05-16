@@ -1,12 +1,12 @@
 (ns garnix-cli.api-test
   (:require
-   [babashka.json :as json]
+   [cheshire.core :as json]
    [clojure.test :refer [deftest is testing]]
    [garnix-cli.api :as api]))
 
 (defn echo-json-request [req]
   {:status 200
-   :body   (json/write-str
+   :body   (json/generate-string
             {:seen {:method        (name (:method req))
                     :uri           (:uri req)
                     :authorization (get-in req [:headers "Authorization"])

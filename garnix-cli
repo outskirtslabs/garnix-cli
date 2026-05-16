@@ -98,70 +98,9 @@
   (if (str/blank? repo)
     (current-repo)
     (parse-repo repo)))
-(ns babashka.json
-  (:refer-clojure :exclude [read]))
-
-(defn- try-require [sym]
-  (try (deref (requiring-resolve sym))
-       (catch Exception _e
-         nil)))
-
-(let [provider (some-> (System/getProperty "babashka.json.provider")
-                       not-empty symbol)
-      [lib read-str-fn write-str-fn ->json-reader read-fn]
-      (if provider
-        (deref (requiring-resolve
-                (case provider
-                  org.clojure/data.json
-                  'babashka.json.internal.data-json/fns
-                  cheshire/cheshire
-                  'babashka.json.internal.cheshire/fns
-                  com.cnuernber/charred
-                  'babashka.json.internal.charred/fns
-                  metosin/jsonista
-                  'babashka.json.internal.jsonista/fns)))
-        (or
-         ;; this should always work in babashka
-         (try-require 'babashka.json.internal.cheshire/fns)
-         ;; this needs to be added to the classpath explicitly
-         (try-require 'babashka.json.internal.charred/fns)
-         ;; this needs to be added to the classpath explicitly
-         (try-require 'babashka.json.internal.jsonista/fns)
-         ;; this one should always work as this project has a dependency on it.
-         (try-require 'babashka.json.internal.data-json/fns)))]
-  (def ^:private lib lib)
-  (def ^:private read-str-fn read-str-fn)
-  (def ^:private write-str-fn write-str-fn)
-  (def ^:private internal->json-reader ->json-reader)
-  (def ^:private read-fn read-fn))
-
-(defn read
-  ([reader] (read reader nil))
-  ([reader opts]
-   (read-fn reader opts)))
-
-(defn read-str
-  ([s] (read-str s nil))
-  ([s opts]
-   (read-str-fn s opts)))
-
-(defn write-str
-  ([s] (write-str s nil))
-  ([s opts]
-   (write-str-fn s opts)))
-
-(defn ->json-reader
-  ([x] (->json-reader x nil))
-  ([x opts]
-   (internal->json-reader x opts)))
-
-(defn get-provider
-  "Returns which library currently provides the JSON implementation."
-  []
-  lib)
 (ns garnix-cli.format
   (:require
-   [babashka.json :as json]
+   [cheshire.core :as json]
    [clojure.string :as str]))
 
 (defn field [m k]
@@ -284,7 +223,7 @@
 
 (defn format-response [response output-format]
   (case output-format
-    :json (json/write-str response)
+    :json (json/generate-string response)
     :edn (pr-str response)
     :plain (format-plain response)
     :human (format-human response)
@@ -310,7 +249,7 @@
    (format-logs log-response output-format nil))
   ([log-response output-format build-id]
    (case output-format
-     :json (json/write-str log-response)
+     :json (json/generate-string log-response)
      :edn (pr-str log-response)
      (format-log-text log-response build-id))))
 
@@ -329,7 +268,7 @@
 (defn format-commit-list [{:keys [commits] :as data} output-format]
   (let [data (assoc data :commits (vec commits))]
     (case output-format
-      :json (json/write-str data)
+      :json (json/generate-string data)
       :edn (pr-str data)
       (format-commit-list-plain data))))
 
@@ -405,7 +344,7 @@
 (ns garnix-cli.api
   (:require
    [babashka.http-client :as http]
-   [babashka.json :as json]
+   [cheshire.core :as json]
    [clojure.string :as str]))
 
 (def default-base-url "https://api.garnix.io")
@@ -421,7 +360,7 @@
 
 (defn- parse-json-body [body]
   (when-not (str/blank? body)
-    (json/read-str body)))
+    (json/parse-string body true)))
 
 (defn request!
   ([client method path]

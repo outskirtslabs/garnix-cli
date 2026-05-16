@@ -15,7 +15,6 @@
 > [!NOTE]
 > This tool was largely vibe-coded.
 
-
 ## Motivation
 
 Garnix already gives you CI for Nix flakes.
@@ -25,9 +24,9 @@ But humans and coding agents often need to stay in the terminal: watch a push, s
 
 ```bash
 ./garnix-cli watch -R outskirtslabs/garnix-cli --compact --exit-status
-# 09783d5d outskirtslabs/garnix-cli main failure — 7 succeeded, 1 failed, 0 pending, 0 cancelled — failed builds: g4oWDmM9 (garnix-log-ux-smoke)
+# 09783d5d outskirtslabs/garnix-cli main failure — 7 succeeded, 1 failed, 0 pending, 0 cancelled — failed builds: B5aPM2pB (packages-default)
 
-./garnix-cli logs g4oWDmM9
+./garnix-cli logs B5aPM2pB
 ```
 
 ## Requirements
@@ -63,7 +62,22 @@ bbin install io.github.outskirtslabs/garnix-cli
 </details>
 
 <details>
-<summary><b>Option 3: Manual installation</b></summary>
+<summary><b>Option 3: Install with Nix</b></summary>
+
+```bash
+nix profile install github:outskirtslabs/garnix-cli
+```
+
+Or run without installing:
+
+```bash
+nix run github:outskirtslabs/garnix-cli -- help
+```
+
+</details>
+
+<details>
+<summary><b>Option 4: From git</b></summary>
 
 ```bash
 git clone https://github.com/outskirtslabs/garnix-cli.git
@@ -108,8 +122,8 @@ When a run has failures, `view` prints the failed build IDs:
 
 ```text
 Failed Builds:
-  • garnix-log-ux-smoke (x86_64-linux): [FAIL] Failure
-    Build ID: g4oWDmM9
+  • packages-default (x86_64-linux): [FAIL] Failure
+    Build ID: B5aPM2pB
 ```
 
 ### Watch a run
@@ -128,10 +142,10 @@ Compact output includes failed build IDs as soon as Garnix reports them.
 ### Fetch logs
 
 ```bash
-./garnix-cli logs g4oWDmM9
+./garnix-cli logs B5aPM2pB
 
 # Raw log response
-./garnix-cli logs g4oWDmM9 --raw
+./garnix-cli logs B5aPM2pB --raw
 ```
 
 ### Machine-readable output
@@ -172,10 +186,9 @@ bb ci
 # Rebuild the uberscript
 bb build
 
-# Update the dependency lock
-nix run .#locker
+# Build the Nix package
+nix build
 ```
-
 
 ## License: European Union Public License 1.2
 

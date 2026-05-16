@@ -1,7 +1,7 @@
 (ns garnix-cli.api
   (:require
    [babashka.http-client :as http]
-   [babashka.json :as json]
+   [cheshire.core :as json]
    [clojure.string :as str]))
 
 (def default-base-url "https://api.garnix.io")
@@ -17,7 +17,7 @@
 
 (defn- parse-json-body [body]
   (when-not (str/blank? body)
-    (json/read-str body)))
+    (json/parse-string body true)))
 
 (defn request!
   ([client method path]

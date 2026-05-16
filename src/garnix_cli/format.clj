@@ -1,6 +1,6 @@
 (ns garnix-cli.format
   (:require
-   [babashka.json :as json]
+   [cheshire.core :as json]
    [clojure.string :as str]))
 
 (defn field [m k]
@@ -123,7 +123,7 @@
 
 (defn format-response [response output-format]
   (case output-format
-    :json (json/write-str response)
+    :json (json/generate-string response)
     :edn (pr-str response)
     :plain (format-plain response)
     :human (format-human response)
@@ -149,7 +149,7 @@
    (format-logs log-response output-format nil))
   ([log-response output-format build-id]
    (case output-format
-     :json (json/write-str log-response)
+     :json (json/generate-string log-response)
      :edn (pr-str log-response)
      (format-log-text log-response build-id))))
 
@@ -168,7 +168,7 @@
 (defn format-commit-list [{:keys [commits] :as data} output-format]
   (let [data (assoc data :commits (vec commits))]
     (case output-format
-      :json (json/write-str data)
+      :json (json/generate-string data)
       :edn (pr-str data)
       (format-commit-list-plain data))))
 

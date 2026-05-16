@@ -1,6 +1,6 @@
 (ns garnix-cli.format-test
   (:require
-   [babashka.json :as json]
+   [cheshire.core :as json]
    [clojure.edn :as edn]
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
@@ -69,7 +69,7 @@
 (deftest json-format-round-trips-response-data
   (testing "JSON format emits machine-readable JSON"
     (is (= sample-response
-           (json/read-str (fmt/format-response sample-response :json))))))
+           (json/parse-string (fmt/format-response sample-response :json) true)))))
 
 (deftest edn-format-round-trips-response-data
   (testing "EDN format emits machine-readable EDN"
@@ -120,7 +120,7 @@
 (deftest commit-list-format-supports-json-and-edn
   (let [list-data {:repo {:slug "owner/repo"} :commits sample-commits}]
     (is (= [list-data list-data]
-           [(json/read-str (fmt/format-commit-list list-data :json))
+           [(json/parse-string (fmt/format-commit-list list-data :json) true)
             (edn/read-string (fmt/format-commit-list list-data :edn))]))))
 
 (deftest compact-watch-format-shows-one-line-status-and-failed-build-ids
@@ -129,5 +129,5 @@
 
 (deftest watch-format-honors-machine-readable-output-formats
   (is (= [sample-response sample-response]
-         [(json/read-str (fmt/format-watch sample-response :json))
+         [(json/parse-string (fmt/format-watch sample-response :json) true)
           (edn/read-string (fmt/format-watch sample-response :edn))])))
