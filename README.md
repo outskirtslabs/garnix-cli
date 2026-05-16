@@ -62,7 +62,9 @@ bbin install io.github.outskirtslabs/garnix-cli
 </details>
 
 <details>
-<summary><b>Option 3: Install with Nix</b></summary>
+<summary><b>Option 3: Install with Nix flakes</b></summary>
+
+Install into your user profile:
 
 ```bash
 nix profile install github:outskirtslabs/garnix-cli
@@ -72,6 +74,28 @@ Or run without installing:
 
 ```bash
 nix run github:outskirtslabs/garnix-cli -- help
+```
+
+To use it from another flake, add the input:
+
+```nix
+{
+  inputs.garnix-cli.url = "github:outskirtslabs/garnix-cli";
+}
+```
+
+Then add the package to your NixOS or Home Manager packages:
+
+```nix
+{ inputs, pkgs, ... }:
+{
+  environment.systemPackages = [
+    inputs.garnix-cli.packages.${pkgs.system}.default
+  ];
+
+  # or, with Home Manager:
+  # home.packages = [ inputs.garnix-cli.packages.${pkgs.system}.default ];
+}
 ```
 
 </details>
