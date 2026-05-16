@@ -68,21 +68,16 @@
        (count-summary s :cancelled) " cancelled"))
 
 (defn- rate-line [response]
-  (let [rate  (success-rate response)
-        label (cond
-                (= 100.0 rate) "[SUCCESS]"
-                (<= 80.0 rate) "[GOOD]"
-                :else "[WARNING]")]
-    (format "%s Success Rate: %.1f%%" label rate)))
+  (format "Success Rate: %.1f%%" (success-rate response)))
 
 (defn- format-human [response]
   (let [s             (summary response)
         failed-builds (filter #(failed-status? (field % :status)) (builds response))
         base-lines    [(str "# Build Summary for " (short-commit (text (field s :git_commit))))
                        ""
-                       (str "**Repository:** " (field s :repo_owner) "/" (field s :repo_name))
-                       (str "**Branch:** " (field s :branch))
-                       (str "**Started:** " (field s :start_time))
+                       (str "Repository: " (field s :repo_owner) "/" (field s :repo_name))
+                       (str "Branch: " (field s :branch))
+                       (str "Started: " (field s :start_time))
                        ""
                        "## Summary"
                        (str "- [OK] Succeeded: " (count-summary s :succeeded))
@@ -177,6 +172,16 @@
       :edn (pr-str data)
       (format-commit-list-plain data))))
 
+(defn- failed-builds-text [response]
+  (let [failed-builds (filter #(failed-status? (field % :status)) (builds response))]
+    (when (seq failed-builds)
+      (str " — failed builds: "
+           (str/join ", "
+                     (map (fn [build]
+                            (str (or (field build :id) "unknown")
+                                 " (" (or (field build :package) "unknown") ")"))
+                          failed-builds))))))
+
 (defn format-watch [response mode]
   (case mode
     :compact (let [s (summary response)]
@@ -184,5 +189,6 @@
                     " " (field s :repo_owner) "/" (field s :repo_name)
                     " " (or (field s :branch) "unknown")
                     " " (summary-status s)
-                    " — " (counts-text s)))
+                    " — " (counts-text s)
+                    (or (failed-builds-text response) "")))
     (format-response response mode)))

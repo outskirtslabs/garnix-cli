@@ -106,6 +106,15 @@
             ${clojure}/bin/clojure -Srepro -P -T:build jar
           '';
       };
+      checks = {
+        garnix-log-ux-smoke =
+          pkgs:
+          pkgs.runCommand "garnix-log-ux-smoke" { } ''
+            echo "Intentional failure for garnix-cli log UX smoke testing." >&2
+            echo "The CLI should show this failed build ID in fetch/watch output so logs are easy to fetch." >&2
+            exit 1
+          '';
+      };
       devShell =
         pkgs:
         pkgs.devshell.mkShell {

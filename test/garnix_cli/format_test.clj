@@ -51,12 +51,16 @@
 
 (deftest human-format-includes-summary-failures-build-ids-and-success-rate
   (let [out (fmt/format-response sample-response :human)]
-    (is (= [true true true true true]
+    (is (= [true true true true true false false false false]
            [(str/includes? out "# Build Summary for abcdef12")
-            (str/includes? out "**Repository:** owner/repo")
+            (str/includes? out "Repository: owner/repo")
             (str/includes? out "pkg-fail (unknown): [FAIL] Failure")
             (str/includes? out "Build ID: build-fail")
-            (str/includes? out "Success Rate: 50.0%")]))))
+            (str/includes? out "Success Rate: 50.0%")
+            (str/includes? out "[WARNING] Success Rate")
+            (str/includes? out "[GOOD] Success Rate")
+            (str/includes? out "[SUCCESS] Success Rate")
+            (str/includes? out "**")]))))
 
 (deftest plain-format-is-stable-and-line-oriented
   (is (= "Build Status for abcdef1234567890\nRepository: owner/repo\nBranch: main\nStarted: 2026-05-16T12:00:00Z\n\nSummary:\n  Succeeded: 2\n  Failed: 1\n  Pending: 1\n  Cancelled: 0\n\nIndividual Builds:\n  build-ok  pkg-ok - Success (x86_64-linux)\n  build-fail  pkg-fail - Failure (unknown)\n  build-pending  pkg-pending - Pending (unknown)\n\nSuccess Rate: 50.0%"
@@ -119,8 +123,8 @@
            [(json/read-str (fmt/format-commit-list list-data :json))
             (edn/read-string (fmt/format-commit-list list-data :edn))]))))
 
-(deftest compact-watch-format-shows-one-line-status
-  (is (= "abcdef12 owner/repo main pending — 2 succeeded, 1 failed, 1 pending, 0 cancelled"
+(deftest compact-watch-format-shows-one-line-status-and-failed-build-ids
+  (is (= "abcdef12 owner/repo main pending — 2 succeeded, 1 failed, 1 pending, 0 cancelled — failed builds: build-fail (pkg-fail)"
          (fmt/format-watch sample-response :compact))))
 
 (deftest watch-format-honors-machine-readable-output-formats
