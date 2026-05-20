@@ -47,6 +47,11 @@
                         :body   (:body resp)
                         :uri    (:uri req)}))))))
 
+(defn create-jwt! [client username api-token]
+  (-> (request! client :post "/auth/jwt" {:basic-auth [username api-token]})
+      :body
+      parse-json-body))
+
 (defn fetch-commit! [client commit-id]
   (-> (request! client :get (str "/commits/" commit-id))
       :body

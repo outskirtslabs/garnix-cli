@@ -20,8 +20,6 @@
 Garnix already gives you CI for Nix flakes.
 But humans and coding agents often need to stay in the terminal: watch a push, see which build failed, copy the build ID, and fetch the logs.
 
-`garnix-cli` keeps that loop short.
-
 ```bash
 ./garnix-cli watch -R outskirtslabs/garnix-cli --compact --exit-status
 # 09783d5d outskirtslabs/garnix-cli main failure — 7 succeeded, 1 failed, 0 pending, 0 cancelled — failed builds: B5aPM2pB (packages-default)
@@ -34,11 +32,20 @@ But humans and coding agents often need to stay in the terminal: watch a push, s
 - [Babashka](https://babashka.org/)
 - `git`, for local repository auto-detection
 
-For private repositories, set `GARNIX_API_TOKEN`:
+For private repositories, provide a Garnix API token and GitHub username. The CLI exchanges the API token for a short-lived Garnix JWT automatically.
 
 ```bash
 export GARNIX_API_TOKEN=...
+export GARNIX_GITHUB_USERNAME=Ramblurr
 ```
+
+Or read the API token from a command:
+
+```bash
+export GARNIX_API_TOKEN_COMMAND='op item get "Garnix" --reveal --fields GARNIX_API_TOKEN'
+```
+
+If `GARNIX_GITHUB_USERNAME` is unset, the CLI tries `gh auth status --json hosts` and uses the active `github.com` login.
 
 ## Install
 

@@ -295,9 +295,12 @@
 (ns garnix-cli.auth
   (:require
    [babashka.fs :as fs]
+   [babashka.process :as p]
    [clojure.string :as str]))
 
 (def token-env-var "GARNIX_API_TOKEN")
+(def token-command-env-var "GARNIX_API_TOKEN_COMMAND")
+(def github-username-env-var "GARNIX_GITHUB_USERNAME")
 
 (defn- non-blank [s]
   (when-not (str/blank? s)
@@ -332,15 +335,52 @@
           (into {}))
      {})))
 
+(defn- env-and-dotenv [opts]
+  {:env    (if (contains? opts :env) (:env opts) (System/getenv))
+   :dotenv (if (contains? opts :dotenv)
+             (:dotenv opts)
+             (dotenv-map (or (:dotenv-path opts) ".env")))})
+
+(defn- run-token-command [opts command]
+  (let [out (if-let [runner (:command-runner opts)]
+              (runner command)
+              (let [{:keys [exit out err]} (p/shell {:out :string :err :string :continue true} command)]
+                (when-not (zero? exit)
+                  (throw (ex-info (str "GARNIX_API_TOKEN_COMMAND failed: " (str/trim (or err "")))
+                                  {:type    :garnix-cli.auth/token-command-failed
+                                   :command command
+                                   :exit    exit
+                                   :err     err})))
+                out))]
+    (non-blank (str/trim (or out "")))))
+
 (defn resolve-token [opts]
-  (let [env      (if (contains? opts :env) (:env opts) (System/getenv))
-        dotenv   (if (contains? opts :dotenv)
-                   (:dotenv opts)
-                   (dotenv-map (or (:dotenv-path opts) ".env")))
-        explicit (non-blank (:token opts))]
+  (let [{:keys [env dotenv]} (env-and-dotenv opts)
+        explicit             (non-blank (:token opts))
+        command              (or (non-blank (get env token-command-env-var))
+                                 (non-blank (get dotenv token-command-env-var)))]
     (or explicit
+        (some->> command (run-token-command opts))
         (non-blank (get env token-env-var))
         (non-blank (get dotenv token-env-var)))))
+
+(defn- gh-username []
+  (try
+    (let [{:keys [exit out]} (p/sh {:out :string :err :string :continue true}
+                                   "gh" "auth" "status"
+                                   "--json" "hosts"
+                                   "--jq" ".hosts.\"github.com\"[] | select(.active).login")]
+      (when (zero? exit)
+        (non-blank (str/trim out))))
+    (catch Exception _
+      nil)))
+
+(defn resolve-github-username [opts]
+  (let [{:keys [env dotenv]} (env-and-dotenv opts)]
+    (or (non-blank (:github-username opts))
+        (non-blank (get env github-username-env-var))
+        (non-blank (get dotenv github-username-env-var))
+        ((or (:gh-username-fn opts) gh-username)))))
 (ns garnix-cli.api
   (:require
    [babashka.http-client :as http]
@@ -390,6 +430,11 @@
                         :body   (:body resp)
                         :uri    (:uri req)}))))))
 
+(defn create-jwt! [client username api-token]
+  (-> (request! client :post "/auth/jwt" {:basic-auth [username api-token]})
+      :body
+      parse-json-body))
+
 (defn fetch-commit! [client commit-id]
   (-> (request! client :get (str "/commits/" commit-id))
       :body
@@ -420,7 +465,7 @@
   (:gen-class))
 
 (def cli-config
-  {:spec      {:token       {:desc "Bearer token (defaults to GARNIX_API_TOKEN)"
+  {:spec      {:token       {:desc "Garnix API token (defaults to GARNIX_API_TOKEN or GARNIX_API_TOKEN_COMMAND)"
                              :ref  "<token>"}
                :base-url    {:desc "Garnix API base URL"
                              :ref  "<url>"}
@@ -544,9 +589,28 @@
     "Options:"
     (cli/format-opts cli-config)]))
 
+(defonce jwt-cache (atom {}))
+
+(defn- jwt-token! [base-url username api-token]
+  (let [cache-key [base-url username api-token]]
+    (or (get @jwt-cache cache-key)
+        (let [jwt-response (api/create-jwt! {:base-url base-url} username api-token)
+              jwt-token    (:token jwt-response)]
+          (when (str/blank? jwt-token)
+            (usage-error "Garnix JWT response did not include a token"))
+          (swap! jwt-cache assoc cache-key jwt-token)
+          jwt-token))))
+
 (defn- client [opts]
-  {:base-url (:base-url opts)
-   :token    (auth/resolve-token opts)})
+  (let [base-url  (:base-url opts)
+        api-token (auth/resolve-token opts)]
+    {:base-url base-url
+     :token    (when api-token
+                 (let [username (auth/resolve-github-username opts)]
+                   (when (str/blank? username)
+                     (usage-error (str "GARNIX_GITHUB_USERNAME is required when using GARNIX_API_TOKEN. "
+                                       "Set it, or authenticate gh so `gh auth status --json hosts` reports github.com login.")))
+                   (jwt-token! base-url username api-token)))}))
 
 (defn- repo-commits! [parsed]
   (let [repo    (repo/resolve-repo (:repo parsed))

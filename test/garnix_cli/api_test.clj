@@ -36,6 +36,17 @@
                                    :request-fn echo-json-request}
                                   {:owner "owner" :repo "repo"}))))
 
+(deftest create-jwt-uses-basic-auth-token-exchange
+  (is (= {:seen {:method        "post"
+                 :uri           "https://example.test/auth/jwt"
+                 :authorization nil
+                 :accept        "application/json"
+                 :basic-auth    ["Ramblurr" "api-token"]}}
+         (api/create-jwt! {:base-url   "https://example.test"
+                           :request-fn echo-json-request}
+                          "Ramblurr"
+                          "api-token"))))
+
 (deftest fetch-build-logs-uses-documented-build-log-endpoints
   (testing "structured logs endpoint"
     (is (= {:seen {:method        "get"

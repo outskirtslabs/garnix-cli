@@ -10,7 +10,7 @@
   (:gen-class))
 
 (def cli-config
-  {:spec      {:token       {:desc "Bearer token (defaults to GARNIX_API_TOKEN)"
+  {:spec      {:token       {:desc "Garnix API token (defaults to GARNIX_API_TOKEN or GARNIX_API_TOKEN_COMMAND)"
                              :ref  "<token>"}
                :base-url    {:desc "Garnix API base URL"
                              :ref  "<url>"}
@@ -134,9 +134,28 @@
     "Options:"
     (cli/format-opts cli-config)]))
 
+(defonce jwt-cache (atom {}))
+
+(defn- jwt-token! [base-url username api-token]
+  (let [cache-key [base-url username api-token]]
+    (or (get @jwt-cache cache-key)
+        (let [jwt-response (api/create-jwt! {:base-url base-url} username api-token)
+              jwt-token    (:token jwt-response)]
+          (when (str/blank? jwt-token)
+            (usage-error "Garnix JWT response did not include a token"))
+          (swap! jwt-cache assoc cache-key jwt-token)
+          jwt-token))))
+
 (defn- client [opts]
-  {:base-url (:base-url opts)
-   :token    (auth/resolve-token opts)})
+  (let [base-url  (:base-url opts)
+        api-token (auth/resolve-token opts)]
+    {:base-url base-url
+     :token    (when api-token
+                 (let [username (auth/resolve-github-username opts)]
+                   (when (str/blank? username)
+                     (usage-error (str "GARNIX_GITHUB_USERNAME is required when using GARNIX_API_TOKEN. "
+                                       "Set it, or authenticate gh so `gh auth status --json hosts` reports github.com login.")))
+                   (jwt-token! base-url username api-token)))}))
 
 (defn- repo-commits! [parsed]
   (let [repo    (repo/resolve-repo (:repo parsed))
